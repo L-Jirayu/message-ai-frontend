@@ -10,6 +10,7 @@ export const Textbox: React.FC<TTextboxProps> = (props) => {
     props.placeholder ??
     (action === "retry" ? "Input id for retry in queue" : "Input the message");
 
+    
   return (
     <input
       type="text"
