@@ -1,0 +1,99 @@
+:root {
+  --color-primary: #6c9ef8;   /* ฟ้าอ่อนสดใส */
+  --color-secondary: #f8a6c9; /* ชมพูพาสเทล */
+  --color-accent: #fcd77f;    /* เหลืองอ่อน */
+  --color-bg: #fdfdfd;        /* พื้นหลังขาวนวล */
+  --color-text: #333;         /* ข้อความอ่านง่าย */
+  --color-muted: #888;        /* ข้อความรอง */
+  --radius: 12px;
+  --shadow: 0 4px 12px rgba(0,0,0,0.05);
+}
+
+body {
+  font-family: "Inter", "Prompt", sans-serif;
+  background: var(--color-bg);
+  color: var(--color-text);
+  line-height: 1.6;
+  margin: 0;
+  padding: 0;
+  background-color: #f5f9ff;
+}
+
+.container {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 2rem;
+}
+
+.card {
+  background: white;
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 1.5rem;
+  margin-bottom: 1.5rem;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 6px 16px rgba(0,0,0,0.08);
+}
+
+button {
+  background: var(--color-primary);
+  border: none;
+  color: white;
+  padding: 0.75rem 1.25rem;
+  border-radius: var(--radius);
+  cursor: pointer;
+  font-size: 1rem;
+  font-weight: 500;
+  transition: background 0.2s ease, transform 0.1s ease;
+}
+
+button:hover {
+  background: #558ae6;
+  transform: translateY(-2px);
+}
+
+button:active {
+  transform: translateY(0);
+}
+
+input, textarea, select {
+  width: 100%;
+  padding: 0.75rem;
+  border-radius: var(--radius);
+  border: 1px solid #ddd;
+  font-size: 1rem;
+  transition: border 0.2s ease, box-shadow 0.2s ease;
+}
+
+input:focus, textarea:focus, select:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px rgba(108,158,248,0.2);
+}
+
+h1, h2, h3 {
+  margin-top: 0;
+  color: var(--color-primary);
+  font-weight: 600;
+}
+
+.text-muted {
+  color: var(--color-muted);
+}
+
+.job-list-box {
+  margin-bottom: 2rem;
+}
+
+.job-action-box {
+  margin-top: 2rem;
+}
+
+
+.job-action-box button {
+  margin-top: 0.75rem;
+}
