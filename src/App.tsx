@@ -9,7 +9,6 @@ function App() {
         <Interface.Box className="job-action-box">
           <h2>Job Action</h2>
           <Interface.Textbox />
-          <Interface.Select />
           <Interface.Button label="Submit" type="submit" />
         </Interface.Box>
 
