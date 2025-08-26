@@ -19,7 +19,7 @@ const InterfaceContent: React.FC<TInterfaceContentProps> = (props) => {
 
 // ---------------- Preset: Job List ----------------
 const InterfaceJobList: React.FC = () => {
-  const { jobs, confirmJob, fetchJobs } = useJobContext();
+  const { jobs, fetchJobs } = useJobContext();
 
   useEffect(() => {
     fetchJobs();
@@ -61,11 +61,7 @@ const InterfaceJobList: React.FC = () => {
             </span>
           </p>
 
-          {job.status === "processing" && (
-            <div style={{ display: "flex", gap: "8px", marginTop: "8px" }}>
-              <Button label="Confirm" onClick={() => confirmJob(job._id)} />
-            </div>
-          )}
+          {job.status === "processing" }
         </Box>
       ))}
     </>
