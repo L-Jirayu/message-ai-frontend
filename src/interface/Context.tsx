@@ -21,7 +21,7 @@ type TJobContext = {
   fetchJobs: () => void;
 };
 
-const API_URL = "http://localhost:3000";
+const API_URL = "https://c700dd4fbae1.ngrok-free.app";
 const JobContext = createContext<TJobContext | null>(null);
 
 type TJobProviderProps = { children: ReactNode };
