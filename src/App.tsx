@@ -4,10 +4,10 @@ function App() {
   return (
     <Interface>
       <Interface.Content>
-        <h1>Job Queue Dashboard</h1>
+        <h1>Message Queue Send System</h1>
 
         <Interface.Box className="job-action-box">
-          <h2>Job Action</h2>
+          <h2>Information Input</h2>
           <Interface.Namebox placeholder="Enter your name" />
           <Interface.Textbox placeholder="Enter the message" />
           <Interface.Button label="Submit" type="submit" />
