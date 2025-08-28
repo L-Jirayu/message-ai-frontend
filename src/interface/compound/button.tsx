@@ -1,5 +1,5 @@
 import React from "react";
-import { useJobContext } from "./Context";
+import { useJobContext } from "../Context";
 
 type TButtonProps = {
   label: string;

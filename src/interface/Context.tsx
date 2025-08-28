@@ -1,27 +1,43 @@
 // src/interface/Context.tsx
 import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
 import type { ReactNode } from "react";
+import { io, Socket } from "socket.io-client";
 
 export type TJob = {
   _id: string;
-  status: string;
-  message?: string;
+  status: "queued" | "processing" | "completed" | "failed" | string;
+  name?: string | null; 
+  message?: string | null;
+  resultSummary?: string | null;
+  category?: string | null;
+  tone?: string | null;
+  priority?: string | null;
+  language?: string | null;
+  error?: string | null;
+  updatedAt?: string | null;
 };
 
 type TJobContext = {
   jobs: TJob[];
   text: string;
-  action: string;
+  name: string; 
+  action: "send" | "pickup" | "reply" | "retry";
   statusMsg: string;
   setText: (value: string) => void;
-  setAction: (value: string) => void;
+  setName: (value: string) => void; 
+  setAction: (value: "send" | "pickup" | "reply" | "retry") => void;
   handleSubmit: () => void;
   confirmJob: (id: string) => void;
   retryJob: (id: string) => void;
   fetchJobs: () => void;
 };
 
-const API_URL = "https://c700dd4fbae1.ngrok-free.app";
+// ✅ รองรับ .env (Vite) และ fallback เป็น localhost
+const API_URL =
+  (import.meta as any).env?.VITE_API_URL?.replace(/\/+$/, "") ?? "http://localhost:3000";
+const SOCKET_URL =
+  (import.meta as any).env?.VITE_SOCKET_URL?.replace(/\/+$/, "") ?? "http://localhost:3000";
+
 const JobContext = createContext<TJobContext | null>(null);
 
 type TJobProviderProps = { children: ReactNode };
@@ -29,15 +45,16 @@ type TJobProviderProps = { children: ReactNode };
 export const JobProvider: React.FC<TJobProviderProps> = ({ children }) => {
   const [jobs, setJobs] = useState<TJob[]>([]);
   const [text, setText] = useState("");
-  const [action, setAction] = useState("send");
+  const [action, setAction] = useState<"send" | "pickup" | "reply" | "retry">("send");
   const [statusMsg, setStatusMsg] = useState("สถานะ: ");
+  const [name, setName] = useState("");
 
   const fetchJobs = useCallback(async () => {
     try {
       const res = await fetch(`${API_URL}/jobs`, { credentials: "include" });
       if (!res.ok) throw new Error("Failed to fetch jobs");
       const data = await res.json();
-      setJobs(data);
+      setJobs(Array.isArray(data) ? data : []);
     } catch (err) {
       console.error("Fetch jobs error", err);
     }
@@ -45,21 +62,29 @@ export const JobProvider: React.FC<TJobProviderProps> = ({ children }) => {
 
   const confirmJob = useCallback(async (id: string) => {
     try {
-      await fetch(`${API_URL}/worker/confirm/${id}`, { method: "PATCH", credentials: "include" });
-      await fetchJobs();
+      const res = await fetch(`${API_URL}/worker/confirm/${id}`, {
+        method: "PATCH",
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error("Confirm failed");
+      // ❌ ไม่ต้อง fetchJobs — รอ socket update
     } catch (err) {
       console.error("Confirm job error", err);
     }
-  }, [fetchJobs]);
+  }, []);
 
   const retryJob = useCallback(async (id: string) => {
     try {
-      await fetch(`${API_URL}/worker/retry/${id}`, { method: "PATCH", credentials: "include" });
-      await fetchJobs();
+      const res = await fetch(`${API_URL}/worker/retry/${id}`, {
+        method: "PATCH",
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error("Retry failed");
+      // ❌ ไม่ต้อง fetchJobs — รอ socket update
     } catch (err) {
       console.error("Retry job error", err);
     }
-  }, [fetchJobs]);
+  }, []);
 
   const handleSubmit = useCallback(async () => {
     if (!text.trim()) {
@@ -69,55 +94,140 @@ export const JobProvider: React.FC<TJobProviderProps> = ({ children }) => {
 
     try {
       if (action === "retry") {
-        await retryJob(text); // 👈 ใช้ text เป็น job id
-        setStatusMsg(`สถานะ: Retry job id=${text}`);
+        // ใช้ text เป็น jobId
+        await retryJob(text.trim());
+        setStatusMsg(`สถานะ: Retry job id=${text.trim()}`);
         setText("");
+        setName("");
         return;
       }
 
       let endpoint = "";
       switch (action) {
-        case "send":   endpoint = `${API_URL}/jobs/ingest`; break;
-        case "pickup": endpoint = `${API_URL}/jobs/pickup`; break;
-        case "reply":  endpoint = `${API_URL}/jobs/reply`; break;
+        case "send":
+          endpoint = `${API_URL}/jobs/ingest`;
+          break;
+        case "pickup":
+          endpoint = `${API_URL}/jobs/pickup`;
+          break;
+        case "reply":
+          endpoint = `${API_URL}/jobs/reply`;
+          break;
       }
+
+      const payload: Record<string, unknown> = { message: text.trim() };
+      if (name.trim()) payload.name = name.trim();
 
       const res = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ message: text }),
+        body: JSON.stringify(payload),
       });
 
       if (!res.ok) throw new Error("Submit failed");
 
-      setStatusMsg(`สถานะ: Action=${action} | Message="${text}"`);
+      setStatusMsg(`สถานะ: Action=${action} | Message="${text.trim()}"`);
       setText("");
-      await fetchJobs();
+      setName("");
+      // ❌ ไม่ต้อง fetchJobs — รอ socket update
     } catch (err) {
       console.error("Submit error", err);
       setStatusMsg("สถานะ: error ตอนส่งงาน");
     }
-  }, [action, text, fetchJobs, retryJob]);
-
+  }, [action, text, name, retryJob]);
 
   useEffect(() => {
+    // โหลดครั้งแรกให้มีรายการก่อน (กันหน้าโล่งถ้า socket มาช้า)
     fetchJobs();
-    const interval = setInterval(fetchJobs, 5000);
-    return () => clearInterval(interval);
+
+    // ตั้งค่า Socket.IO
+    const socket: Socket = io(SOCKET_URL, {
+      // ถ้า Gateway ใช้ค่า default path '/socket.io' — ไม่ต้องตั้งค่า path ก็ได้
+      transports: ["websocket"], // ✅ บังคับ WS ล้วน ลด preflight/ปัญหา CORS
+      withCredentials: true,
+      reconnection: true,
+      reconnectionAttempts: Infinity,
+      reconnectionDelayMax: 5000,
+    });
+
+    let socketConnected = false;
+    let pollTimer: number | null = null;
+
+    const startPolling = () => {
+      if (pollTimer == null) {
+        pollTimer = window.setInterval(fetchJobs, 3000);
+      }
+    };
+
+    const stopPolling = () => {
+      if (pollTimer != null) {
+        clearInterval(pollTimer);
+        pollTimer = null;
+      }
+    };
+
+    socket.on("connect", () => {
+      socketConnected = true;
+      console.log("✅ Connected to WebSocket:", SOCKET_URL);
+      // ต่อได้แล้วไม่ต้อง polling
+      console.log("🚀 Transport:", socket.io.engine.transport.name);
+      stopPolling();
+    });
+
+    socket.on("disconnect", (reason) => {
+      socketConnected = false;
+      console.log("⚠️ WebSocket disconnected:", reason, "→ fallback to polling");
+      startPolling();
+    });
+
+    socket.on("connect_error", (err) => {
+      socketConnected = false;
+      console.warn("⚠️ WebSocket connect_error:", err.message, "→ fallback to polling");
+      startPolling();
+    });
+
+    socket.on("jobStatusUpdate", (data: TJob) => {
+      setJobs((prev) => {
+        const exists = prev.find((j) => j._id === data._id);
+        return exists
+          ? prev.map((j) => (j._id === data._id ? { ...j, ...data } : j))
+          : [...prev, data];
+      });
+    });
+
+    socket.on("jobDeleted", (id: string) => {
+      setJobs((prev) => prev.filter((j) => j._id !== id));
+    });
+
+    // ถ้าตอน mount ต่อไม่ได้ ให้เริ่ม polling เลย
+    setTimeout(() => {
+      if (!socketConnected) startPolling();
+    }, 800);
+
+    return () => {
+      socket.removeAllListeners();
+      socket.close();
+      stopPolling();
+    };
   }, [fetchJobs]);
-  
+
   const value: TJobContext = {
-    jobs, text, action, statusMsg,
-    setText, setAction, handleSubmit,
-    confirmJob, retryJob, fetchJobs
+    jobs,
+    text,
+    name,
+    action,
+    statusMsg,
+    setText,
+    setName,
+    setAction,
+    handleSubmit,
+    confirmJob,
+    retryJob,
+    fetchJobs,
   };
 
-  return (
-    <JobContext.Provider value={value}>
-      {children}
-    </JobContext.Provider>
-  );
+  return <JobContext.Provider value={value}>{children}</JobContext.Provider>;
 };
 
 export function useJobContext() {

@@ -8,7 +8,8 @@ function App() {
 
         <Interface.Box className="job-action-box">
           <h2>Job Action</h2>
-          <Interface.Textbox />
+          <Interface.Namebox placeholder="Enter your name" />
+          <Interface.Textbox placeholder="Enter the message" />
           <Interface.Button label="Submit" type="submit" />
         </Interface.Box>
 

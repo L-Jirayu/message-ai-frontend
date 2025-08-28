@@ -1,9 +1,10 @@
 import React, { useEffect } from "react";
 import { JobProvider, useJobContext } from "./Context";
-import { Button } from "./button";
-import { Box } from "./box";
-import { Textbox } from "./textbox";
-import { Select } from "./select";
+import { Button } from "./compound/button";
+import { Box } from "./compound/box";
+import { Textbox } from "./compound/textbox";
+import { Namebox } from "./compound/ืnamebox";
+import { Select } from "./compound/select";
 import "./css/style.css";
 
 const InterfaceRoot: React.FC<{ children: React.ReactNode }> = (props) => {
@@ -34,7 +35,7 @@ const InterfaceJobList: React.FC = () => {
       {jobs.map((job) => (
         <Box key={job._id}>
           <p>
-            <strong>ID:</strong> {job._id}
+            <strong>Name:</strong> {job.name}
           </p>
 
           {job.message && (
@@ -70,21 +71,26 @@ const InterfaceJobList: React.FC = () => {
 
 // ---------------- Preset: Job Action ----------------
 const InterfaceJobAction: React.FC = () => {
-  const { statusMsg } = useJobContext();
+  const { statusMsg, handleSubmit } = useJobContext();
 
   return (
     <Box>
       <h2>Job Action</h2>
 
+      {/* ช่องกรอกชื่อ */}
+      <div style={{ marginBottom: "1rem" }}>
+        <Namebox placeholder="ใส่ชื่อ" />
+      </div>
+
+      {/* ช่องกรอกข้อความ (message) */}
       <div style={{ marginBottom: "1rem" }}>
         <Textbox placeholder="ใส่ข้อความ payload" />
       </div>
-      
-      <Button label="Submit" type="submit" />
-      <p
-        className="text-muted"
-        style={{ marginTop: "1rem", fontWeight: "bold" }}
-      >
+
+      {/* ให้ปุ่มเป็น type="button" และเรียก handleSubmit */}
+      <Button label="Submit" type="button" onClick={handleSubmit} />
+
+      <p className="text-muted" style={{ marginTop: "1rem", fontWeight: "bold" }}>
         {statusMsg}
       </p>
     </Box>
@@ -98,6 +104,7 @@ export const Interface = Object.assign(InterfaceRoot, {
   JobAction: InterfaceJobAction,
   Button: Button,
   Textbox: Textbox,
+  Namebox: Namebox,
   Box: Box,
   Select: Select,
 });
