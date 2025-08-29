@@ -4,7 +4,7 @@ function App() {
   return (
     <Interface>
       <Interface.Content>
-        <h1>Message Queue Send System</h1>
+        <h1>Message Send System</h1>
 
         <Interface.Box className="job-action-box">
           <h2>Information Input</h2>

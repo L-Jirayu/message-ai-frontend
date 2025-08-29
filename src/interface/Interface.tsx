@@ -75,8 +75,6 @@ const InterfaceJobAction: React.FC = () => {
 
   return (
     <Box>
-      <h2>Job Action</h2>
-
       {/* ช่องกรอกชื่อ */}
       <div style={{ marginBottom: "1rem" }}>
         <Namebox placeholder="ใส่ชื่อ" />
