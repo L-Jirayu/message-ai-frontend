@@ -51,7 +51,7 @@ export const JobProvider: React.FC<TJobProviderProps> = ({ children }) => {
 
   const fetchJobs = useCallback(async () => {
     try {
-      const res = await fetch(`${API_URL}/jobs?limit=100`, { credentials: "include" });
+      const res = await fetch(`${API_URL}/jobs?limit=100&order=asc`, { credentials: "include" });
       if (!res.ok) throw new Error(`Failed to fetch jobs: ${res.status}`);
 
       const json = await res.json();
