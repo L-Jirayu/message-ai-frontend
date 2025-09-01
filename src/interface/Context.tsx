@@ -51,10 +51,28 @@ export const JobProvider: React.FC<TJobProviderProps> = ({ children }) => {
 
   const fetchJobs = useCallback(async () => {
     try {
-      const res = await fetch(`${API_URL}/jobs`, { credentials: "include" });
-      if (!res.ok) throw new Error("Failed to fetch jobs");
-      const data = await res.json();
-      setJobs(Array.isArray(data) ? data : []);
+      const res = await fetch(`${API_URL}/jobs?limit=100`, { credentials: "include" });
+      if (!res.ok) throw new Error(`Failed to fetch jobs: ${res.status}`);
+
+      const json = await res.json();
+      const rows = Array.isArray(json) ? json : (json?.data ?? []); // ← รองรับทั้งเก่า/ใหม่
+
+      // (ถ้าต้องการ normalize ให้ชัวร์)
+      const mapped = rows.map((j: any) => ({
+        _id: j._id?.$oid ?? j._id ?? j.id,
+        name: j.name ?? null,
+        message: j.message ?? null,
+        status: j.status ?? 'unknown',
+        resultSummary: j.resultSummary ?? null,
+        category: j.category ?? null,
+        tone: j.tone ?? null,
+        priority: j.priority ?? j.urgency ?? null,
+        language: j.language ?? null,
+        error: j.error ?? null,
+        updatedAt: j.updatedAt ?? j.updated_at ?? null,
+      }));
+
+      setJobs(mapped);
     } catch (err) {
       console.error("Fetch jobs error", err);
     }
@@ -124,6 +142,11 @@ export const JobProvider: React.FC<TJobProviderProps> = ({ children }) => {
         credentials: "include",
         body: JSON.stringify(payload),
       });
+
+      if (res.status === 429) {
+        setStatusMsg("สถานะ: โดนจำกัดความถี่ (429) รอสักครู่แล้วลองใหม่");
+        return;
+      }
 
       if (!res.ok) throw new Error("Submit failed");
 
