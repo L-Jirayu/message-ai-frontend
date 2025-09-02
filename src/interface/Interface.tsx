@@ -3,7 +3,7 @@ import { JobProvider, useJobContext } from "./Context";
 import { Button } from "./compound/button";
 import { Box } from "./compound/box";
 import { Textbox } from "./compound/textbox";
-import { Namebox } from "./compound/ืnamebox";
+import { Namebox } from "./compound/namebox"; // คง path ตามที่คุณใช้
 import { Select } from "./compound/select";
 import "./css/style.css";
 
@@ -20,7 +20,7 @@ const InterfaceContent: React.FC<TInterfaceContentProps> = (props) => {
 
 // ---------------- Preset: Job List ----------------
 const InterfaceJobList: React.FC = () => {
-  const { jobs, fetchJobs } = useJobContext();
+  const { jobs, fetchJobs, hasMore, loadMore } = useJobContext();
 
   useEffect(() => {
     fetchJobs();
@@ -35,7 +35,7 @@ const InterfaceJobList: React.FC = () => {
       {jobs.map((job) => (
         <Box key={job._id}>
           <p>
-            <strong>Name:</strong> {job.name}
+            <strong>Name:</strong> {job.name ?? "-"}
           </p>
 
           {job.message && (
@@ -54,17 +54,24 @@ const InterfaceJobList: React.FC = () => {
                     : job.status === "failed"
                     ? "#f87171"
                     : job.status === "processing"
-                    ? "#b45309" // สีเข้มขึ้น
+                    ? "#b45309"
                     : "#1f2937",
               }}
             >
               {job.status}
             </span>
           </p>
-
-          {job.status === "processing" }
         </Box>
       ))}
+
+      <div style={{ display: "flex", justifyContent: "center", marginTop: 12 }}>
+        <Button
+          label={hasMore ? "โหลดเพิ่ม" : "หมดแล้ว"}
+          type="button"
+          onClick={loadMore}
+          disabled={!hasMore}
+        />
+      </div>
     </>
   );
 };
@@ -85,7 +92,7 @@ const InterfaceJobAction: React.FC = () => {
         <Textbox placeholder="ใส่ข้อความ payload" />
       </div>
 
-      {/* ให้ปุ่มเป็น type="button" และเรียก handleSubmit */}
+      {/* ปุ่มส่ง */}
       <Button label="Submit" type="button" onClick={handleSubmit} />
 
       <p className="text-muted" style={{ marginTop: "1rem", fontWeight: "bold" }}>
