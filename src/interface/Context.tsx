@@ -1,4 +1,3 @@
-// src/interface/Context.tsx
 import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
 import type { ReactNode } from "react";
 import { io, Socket } from "socket.io-client";
@@ -15,6 +14,7 @@ export type TJob = {
   language?: string | null;
   error?: string | null;
   updatedAt?: string | null;
+  createdAt?: string | null; // 👈 ใช้เรียงให้ตำแหน่งคงที่
 };
 
 type TJobContext = {
@@ -30,12 +30,11 @@ type TJobContext = {
   confirmJob: (id: string) => void;
   retryJob: (id: string) => void;
   fetchJobs: () => void;
-  // pagination
   hasMore: boolean;
   loadMore: () => void;
 };
 
-// ====== Shapes ที่มาจาก API (ไม่มี any) ======
+// ====== Shapes จาก API ======
 type TMongoId = { $oid: string };
 
 type TJobRow = {
@@ -77,15 +76,15 @@ const SOCKET_URL =
   (import.meta as unknown as { env?: Record<string, string> }).env?.VITE_SOCKET_URL?.replace(/\/+$/, "") ??
   "http://localhost:3000";
 
-// เก่าสุดอยู่บน ใหม่ลงล่าง
-const ORDER: "asc" | "desc" = "asc";
+// Messenger mode: ขอ API แบบ "desc" (ใหม่ก่อน)
+const ORDER: "asc" | "desc" = "desc";
 const PAGE_SIZE = 100;
 
 const JobContext = createContext<TJobContext | null>(null);
 
 type TJobProviderProps = { children: ReactNode };
 
-// ====== helper: แปลง row -> TJob ======
+// ====== helpers ======
 function pickId(row: TJobRow): string {
   if (typeof row._id === "object" && row._id && "$oid" in row._id) return (row._id as TMongoId).$oid;
   if (typeof row._id === "string") return row._id;
@@ -93,9 +92,18 @@ function pickId(row: TJobRow): string {
   return "";
 }
 
+// ดึงเวลาสร้างจาก ObjectId (4 ไบต์แรกคือ timestamp วินาที)
+function oidTime(id: string | undefined): string | null {
+  if (!id || id.length < 8) return null;
+  const sec = parseInt(id.substring(0, 8), 16);
+  if (Number.isNaN(sec)) return null;
+  return new Date(sec * 1000).toISOString();
+}
+
 function rowToJob(j: TJobRow): TJob {
+  const _id = pickId(j);
   return {
-    _id: pickId(j),
+    _id,
     name: j.name ?? null,
     message: j.message ?? null,
     status: (j.status ?? "unknown") as TJob["status"],
@@ -106,6 +114,7 @@ function rowToJob(j: TJobRow): TJob {
     language: j.language ?? null,
     error: j.error ?? null,
     updatedAt: j.updatedAt ?? j.updated_at ?? null,
+    createdAt: oidTime(_id), // 👈 ใช้เรียงแชทแบบคงที่
   };
 }
 
@@ -120,18 +129,25 @@ export const JobProvider: React.FC<TJobProviderProps> = ({ children }) => {
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [hasMore, setHasMore] = useState<boolean>(false);
 
-  // รวมแบบ append ท้าย (กันซ้ำด้วย _id)
-  const mergeAppend = useCallback((prev: TJob[], chunk: TJob[]) => {
+  // เติม "ของเก่า" ด้านบน (prepend) และกันซ้ำ
+  const mergePrepend = useCallback((prev: TJob[], olderChunk: TJob[]) => {
     const seen = new Set(prev.map((j) => j._id));
-    const appended = chunk.filter((j) => !seen.has(j._id));
-    return [...prev, ...appended];
+    const uniques = olderChunk.filter((j) => !seen.has(j._id));
+    return [...uniques, ...prev];
   }, []);
 
-  // ดึงหน้า (หน้าแรก / หน้าถัดไป)
+  // เติม "ของใหม่/Realtime" ด้านล่าง (append) และกันซ้ำ
+  const mergeAppend = useCallback((prev: TJob[], newerChunk: TJob[]) => {
+    const seen = new Set(prev.map((j) => j._id));
+    const uniques = newerChunk.filter((j) => !seen.has(j._id));
+    return [...prev, ...uniques];
+  }, []);
+
+  // ดึงหน้า (หน้าแรก / ของเก่า)
   const fetchPage = useCallback(
-    async (opts?: { cursor?: string | null; append?: boolean }) => {
+    async (opts?: { cursor?: string | null; mode?: "initial" | "older" }) => {
       const cursor = opts?.cursor ?? null;
-      const append = opts?.append ?? false;
+      const mode = opts?.mode ?? "initial";
 
       const qs = new URLSearchParams({ limit: String(PAGE_SIZE), order: ORDER });
       if (cursor) qs.set("cursor", cursor);
@@ -144,29 +160,30 @@ export const JobProvider: React.FC<TJobProviderProps> = ({ children }) => {
       const rows: TJobRow[] = Array.isArray(json) ? json : json.data ?? [];
       const meta: TMeta = Array.isArray(json) ? null : json.meta ?? null;
 
-      const chunk = rows.map(rowToJob);
-      setJobs((prev) => (append ? mergeAppend(prev, chunk) : chunk));
+      // API ส่ง desc (ใหม่ก่อน) → กลับเป็น asc เพื่อ “ใหม่สุดอยู่ล่าง”
+      const chunkAsc = rows.map(rowToJob).reverse();
 
+      setJobs((prev) => (mode === "older" ? mergePrepend(prev, chunkAsc) : chunkAsc));
       setNextCursor(meta?.nextCursor ?? null);
       setHasMore(Boolean(meta?.hasMore));
     },
-    [mergeAppend]
+    [mergePrepend]
   );
 
   // หน้าแรก
   const fetchJobs = useCallback(async () => {
     try {
-      await fetchPage({ append: false, cursor: null });
+      await fetchPage({ mode: "initial", cursor: null });
     } catch (err) {
       console.error("Fetch jobs error", err);
     }
   }, [fetchPage]);
 
-  // หน้าถัดไป (ใช้ตอนกด “โหลดเพิ่ม” ฝั่ง Laravel Blade)
+  // โหลดของเก่า (เติมด้านบน)
   const loadMore = useCallback(async () => {
     if (!hasMore || !nextCursor) return;
     try {
-      await fetchPage({ append: true, cursor: nextCursor });
+      await fetchPage({ mode: "older", cursor: nextCursor });
     } catch (err) {
       console.error("Load more error", err);
     }
@@ -266,7 +283,7 @@ export const JobProvider: React.FC<TJobProviderProps> = ({ children }) => {
 
     const startPolling = () => {
       if (pollTimer == null) {
-        pollTimer = window.setInterval(() => fetchPage({ append: false, cursor: null }), 3000);
+        pollTimer = window.setInterval(() => fetchJobs(), 3000);
       }
     };
     const stopPolling = () => {
@@ -291,7 +308,7 @@ export const JobProvider: React.FC<TJobProviderProps> = ({ children }) => {
       startPolling();
     });
 
-    // อัปเดต realtime: ถ้ามีอยู่แล้วอัปเดต, ถ้าใหม่ให้ต่อท้าย (เพราะ ORDER = asc)
+    // Realtime: อัปเดตถ้ามีอยู่แล้ว, ถ้าใหม่ → append ท้าย (ใหม่สุดล่าง)
     socket.on("jobStatusUpdate", (dataLike: TJobRow) => {
       const data = rowToJob(dataLike);
       setJobs((prev) => {
@@ -301,7 +318,7 @@ export const JobProvider: React.FC<TJobProviderProps> = ({ children }) => {
           clone[idx] = { ...clone[idx], ...data };
           return clone;
         }
-        return [...prev, data]; // append ท้าย (ใหม่ลงล่าง)
+        return mergeAppend(prev, [data]);
       });
     });
 
@@ -320,7 +337,7 @@ export const JobProvider: React.FC<TJobProviderProps> = ({ children }) => {
       socket.close();
       stopPolling();
     };
-  }, [fetchJobs, fetchPage]);
+  }, [fetchJobs, mergeAppend]);
 
   const value: TJobContext = {
     jobs,

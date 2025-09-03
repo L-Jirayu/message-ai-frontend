@@ -6,6 +6,10 @@ function App() {
       <Interface.Content>
         <h1>Message Send System</h1>
 
+        <Interface.Box className="job-list-box">
+          <Interface.JobList />
+        </Interface.Box>
+
         <Interface.Box className="job-action-box">
           <h2>Information Input</h2>
           <Interface.Namebox placeholder="Enter your name" />
@@ -13,9 +17,6 @@ function App() {
           <Interface.Button label="Submit" type="submit" />
         </Interface.Box>
 
-        <Interface.Box className="job-list-box">
-          <Interface.JobList />
-        </Interface.Box>
       </Interface.Content>
     </Interface>
   );
